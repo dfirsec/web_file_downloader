@@ -19,6 +19,10 @@ root = Path(__file__).parent.resolve()
 filepath = root.joinpath("Downloads")
 filepath.mkdir(parents=True, exist_ok=True)
 
+headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36"
+}
+
 
 def link_parser(req_url, filetype):
     """
@@ -28,7 +32,8 @@ def link_parser(req_url, filetype):
     :param req_url: The URL of the page you want to scrape
     :param ftype: the file type you want to download
     """
-    response = requests.get(req_url)
+
+    response = requests.get(req_url, headers=headers)
     soup = BeautifulSoup(response.text, "lxml")
     links = soup.find_all("a", href=True)
     results = [x["href"] for x in links]
@@ -47,7 +52,7 @@ async def downloader(session, download_url):
     :return: The response object is being returned.
     """
     async with async_timeout.timeout(10):
-        async with session.get(download_url) as response:
+        async with session.get(download_url, headers=headers) as response:
             filename = os.path.basename(download_url)
             async with aiofiles.open(filepath / filename, "wb") as fileobj:
                 while True:
@@ -68,7 +73,7 @@ async def main(url, filetype):
     if urls := list(link_parser(url, filetype)):
         async with aiohttp.ClientSession() as session:
             for urlitem in urls:
-                print(f"Downloading: {urlitem.split('/')[-1]}")
+                print(f"[+] Downloading: {urlitem.split('/')[-1]}")
                 await downloader(session, urlitem)
     else:
         print(f"[x] File type '{filetype}' does not appear to be available.")
