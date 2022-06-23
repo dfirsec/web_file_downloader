@@ -54,9 +54,10 @@ async def downloader(session, download_url):
     async with async_timeout.timeout(10):
         async with session.get(download_url, headers=headers) as response:
             filename = os.path.basename(download_url)
-            if not Path(filepath/filename).resolve().exists():
+            dlpath = Path(filepath / filename)
+            if not dlpath.resolve().exists():
                 print(f"[+] Downloading: {filename}")
-                async with aiofiles.open(filepath / filename, "wb") as fileobj:
+                async with aiofiles.open(dlpath, "wb") as fileobj:
                     while True:
                         chunk = await response.content.read(1024)
                         if not chunk:
