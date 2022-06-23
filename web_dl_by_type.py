@@ -1,5 +1,6 @@
 import asyncio
 import os
+import platform
 import sys
 from pathlib import Path
 from urllib.parse import urljoin
@@ -20,7 +21,7 @@ filepath = root.joinpath("Downloads")
 filepath.mkdir(parents=True, exist_ok=True)
 
 headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36"
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36",
 }
 
 
@@ -35,8 +36,7 @@ def link_parser(req_url, filetype):
 
     response = requests.get(req_url, headers=headers)
     soup = BeautifulSoup(response.text, "lxml")
-    links = soup.find_all("a", href=True)
-    results = [x["href"] for x in links]
+    results = [link.get("href") for link in soup.find_all("a") if link.get("href") is not None]
 
     for link in results:
         if os.path.basename(link).split(".")[-1] == filetype:
@@ -54,13 +54,16 @@ async def downloader(session, download_url):
     async with async_timeout.timeout(10):
         async with session.get(download_url, headers=headers) as response:
             filename = os.path.basename(download_url)
-            async with aiofiles.open(filepath / filename, "wb") as fileobj:
-                while True:
-                    chunk = await response.content.read(1024)
-                    if not chunk:
-                        break
-                    await fileobj.write(chunk)
-            return await response.release()
+            if not filename:
+                print(f"[+] Downloading: {filename}")
+                async with aiofiles.open(filepath / filename, "wb") as fileobj:
+                    while True:
+                        chunk = await response.content.read(1024)
+                        if not chunk:
+                            break
+                        await fileobj.write(chunk)
+                return await response.release()
+            print(f"[-] File already exists: {filename}")
 
 
 async def main(url, filetype):
@@ -73,13 +76,16 @@ async def main(url, filetype):
     if urls := list(link_parser(url, filetype)):
         async with aiohttp.ClientSession() as session:
             for urlitem in urls:
-                print(f"[+] Downloading: {urlitem.split('/')[-1]}")
                 await downloader(session, urlitem)
     else:
         print(f"[x] File type '{filetype}' does not appear to be available.")
 
 
 if __name__ == "__main__":
+
+    if sys.version_info.minor < 7:
+        print(f"[!] Tested on Python version 3.7+. May not work with {platform.python_version()}\n")
+
     if len(sys.argv) < 3:
         sys.exit(f"Usage: python {os.path.basename(__file__)} <URL> <FILE TYPE>")
     else:
@@ -88,5 +94,9 @@ if __name__ == "__main__":
 
     if not validators.url(mainurl):  # type: ignore
         sys.exit(f"[!] {mainurl} is not a valid URL")
+
+    # Resolves issue: https://github.com/encode/httpx/issues/914
+    if platform.system() == "Windows":
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
     asyncio.run(main(mainurl, ftype))
