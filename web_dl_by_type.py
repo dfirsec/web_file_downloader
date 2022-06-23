@@ -16,6 +16,7 @@ __author__ = "DFIRSec (@pulsecode)"
 __version__ = "0.1"
 __description__ = "Download web hosted files by filetype/file extension."
 
+# Creates "Downloads" directory in the same directory as the script.
 root = Path(__file__).parent.resolve()
 filepath = root.joinpath("Downloads")
 filepath.mkdir(parents=True, exist_ok=True)
@@ -27,11 +28,11 @@ headers = {
 
 def link_parser(req_url, filetype):
     """
-    Takes a URL and a file type as arguments, and returns a generator object that yields all the
-    links on the page that end with the specified file type
+    Takes a URL and a filetype as arguments, and returns a generator object that yields all the links
+    on the page that end with the specified filetype
 
-    :param req_url: The URL of the page you want to scrape
-    :param ftype: the file type you want to download
+    :param req_url: The URL to parse
+    :param filetype: The filetype you want to search for
     """
     try:
         response = requests.get(req_url, headers=headers)
@@ -89,15 +90,18 @@ async def main(url, filetype):
 
 if __name__ == "__main__":
 
+    # Check python version.
     if sys.version_info.minor < 7:
         print(f"[!] Tested on Python version 3.7+. May not work with {platform.python_version()}\n")
 
+    # Check if the user has entered the correct number of arguments.
     if len(sys.argv) < 3:
         sys.exit(f"Usage: python {os.path.basename(__file__)} <URL> <FILE TYPE>")
     else:
         mainurl = sys.argv[1]
         ftype = sys.argv[2]
 
+    # Check if the URL is valid.
     if not validators.url(mainurl):  # type: ignore
         sys.exit(f"[!] {mainurl} is not a valid URL")
 
@@ -105,4 +109,5 @@ if __name__ == "__main__":
     if platform.system() == "Windows":
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
+    # Running the main function asynchronously.
     asyncio.run(main(mainurl, ftype))
