@@ -15,3 +15,7 @@ pip install -r requirements.txt
 ```text
 Usage: python web_dl_by_type.py <URL> <FILE TYPE>
 ```
+
+## Notes
+
+Script creates a 'Downloads' folder as a repository for downloaded files.
