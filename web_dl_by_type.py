@@ -54,7 +54,7 @@ async def downloader(session, download_url):
     async with async_timeout.timeout(10):
         async with session.get(download_url, headers=headers) as response:
             filename = os.path.basename(download_url)
-            if not filename:
+            if not Path(filepath/filename).resolve().exists():
                 print(f"[+] Downloading: {filename}")
                 async with aiofiles.open(filepath / filename, "wb") as fileobj:
                     while True:
@@ -63,6 +63,7 @@ async def downloader(session, download_url):
                             break
                         await fileobj.write(chunk)
                 return await response.release()
+
             print(f"[-] File already exists: {filename}")
 
 
