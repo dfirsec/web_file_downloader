@@ -33,14 +33,17 @@ def link_parser(req_url, filetype):
     :param req_url: The URL of the page you want to scrape
     :param ftype: the file type you want to download
     """
-
-    response = requests.get(req_url, headers=headers)
-    soup = BeautifulSoup(response.text, "lxml")
-    results = [link.get("href") for link in soup.find_all("a") if link.get("href") is not None]
-
-    for link in results:
-        if os.path.basename(link).split(".")[-1] == filetype:
-            yield urljoin(req_url, link) if req_url not in link else link
+    try:
+        response = requests.get(req_url, headers=headers)
+        response.raise_for_status()
+    except (ConnectionError, requests.exceptions.HTTPError) as error:
+        sys.exit(f"[x] {error}")
+    else:
+        soup = BeautifulSoup(response.text, "lxml")
+        if results := [link.get("href") for link in soup.find_all("a") if link.get("href") is not None]:
+            for link in results:
+                if os.path.basename(link).split(".")[-1] == filetype:
+                    yield urljoin(req_url, link) if req_url not in link else link
 
 
 async def downloader(session, download_url):
@@ -77,10 +80,11 @@ async def main(url, filetype):
     """
     if urls := list(link_parser(url, filetype)):
         async with aiohttp.ClientSession() as session:
+            print(f"[+] Located {len(urls)} '{filetype}' files...")
             for urlitem in urls:
                 await downloader(session, urlitem)
     else:
-        print(f"[x] File type '{filetype}' does not appear to be available.")
+        print(f"[x] File type '{filetype}' does not appear to be available, or URL is is incorrect.")
 
 
 if __name__ == "__main__":
