@@ -1,6 +1,0 @@
-aiofiles
-aiohttp
-async_timeout
-beautifulsoup4
-requests
-validators
