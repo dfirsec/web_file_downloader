@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 import platform
 import re
@@ -12,13 +13,12 @@ import aiohttp
 import async_timeout
 from aiohttp import ClientSession
 from bs4 import BeautifulSoup
-from rich import print as rprint
 from rich.console import Console
 
 CONSOLE = Console()
 
 __author__ = "DFIRSec (@pulsecode)"
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 __description__ = "Download web hosted files by filetype/file extension."
 
 ROOT = Path(__file__).parent.resolve()
@@ -29,18 +29,27 @@ HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gec
 
 MAX_CONCURRENT_DOWNLOADS = 10
 
+# Set up logging configuration
+logging.basicConfig(
+    level=logging.ERROR,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[logging.FileHandler("error_log.log")],
+)
+
 
 async def get_page(session: aiohttp.ClientSession, req_url: str) -> str:
     """
     Aynchronous function that uses aiohttp library to make a GET request
     to a specified URL and returns the response body as a string.
 
-    :param session: aiohttp.ClientSession object used to make the HTTP request
-    :type session: aiohttp.ClientSession
-    :param req_url: req_url is a string parameter that represents the URL of the webpage that we want to
-    retrieve
-    :type req_url: str
-    :return: a string, which is the HTML content of the requested page.
+    Args:
+        session (aiohttp.ClientSession) : aiohttp.ClientSession object used to make the HTTP request.
+
+        req_url (str): req_url is a string parameter that represents the URL of the
+                    webpage that we want to retrieve.
+
+    Returns:
+        str: HTML content of the requested page.
     """
     async with session.get(req_url, headers=HEADERS, timeout=aiohttp.ClientTimeout(total=10)) as response:
         response.raise_for_status()
@@ -50,16 +59,16 @@ async def get_page(session: aiohttp.ClientSession, req_url: str) -> str:
 
 async def link_parser(base_url: str, filetype: str, html: str) -> AsyncIterator[str]:
     """
-    Extracts links to files of specified type from HTML content and yields
-    them as an asynchronous iterator.
+    Asynchronous generator function that parses the given HTML content and yields URLs of files with
+    the specified file type.
 
-    :param base_url: The base URL of the website being parsed
-    :type base_url: str
-    :param filetype: The file extension/type that the function should search for in the HTML and extract
-    links for
-    :type filetype: str
-    :param html: The HTML content of a webpage that needs to be parsed for links
-    :type html: str
+    Args:
+        base_url (str): The base URL of the webpage to be used for resolving relative URLs.
+        filetype (str): The file type to look for when parsing the HTML content.
+        html (str): The HTML content of the webpage to be parsed.
+
+    Yields:
+        str: The URLs of files with the specified file type.
     """
     pattern = re.compile(r"https?://\S+" + re.escape(filetype))
     for match in pattern.finditer(html):
@@ -86,34 +95,45 @@ async def link_parser(base_url: str, filetype: str, html: str) -> AsyncIterator[
                 yield url
 
 
-async def downloader(semaphore: asyncio.Semaphore, session: ClientSession, download_url: str, filetype: str) -> None:
+async def downloader(
+    semaphore: asyncio.Semaphore, session: ClientSession, download_url: str, filetype: str, failed_downloads: list
+) -> None:
     """
-    Asynchronous function that downloads a file from the given URL if it matches the file type.
+    Asynchronous downloader function with error handling for timeouts and incorrect file types.
 
-    :param semaphore: An asyncio Semaphore object used to limit the number of concurrent downloads
-    :type semaphore: asyncio.Semaphore
-    :param session: The session parameter is an instance of the aiohttp.ClientSession class, which is
-    used to make HTTP requests. It allows for persistent connections and connection pooling, which can
-    improve performance when making multiple requests to the same server
-    :type session: ClientSession
-    :param download_url: The URL of the file to be downloaded
-    :type download_url: str
-    :param filetype: The parameter 'filetype' is a string that represents the file type that the
-    downloader function is looking for. It is used to check if the downloaded file has the same file
-    type as the one specified
-    :type filetype: str
+    Args:
+        semaphore (asyncio.Semaphore): An asyncio Semaphore object used to limit the number of concurrent downloads.
+        session (ClientSession): An instance of the aiohttp ClientSession class, used to make HTTP requests.
+                                It allows for persistent connections and connection pooling, which can
+                                improve performance when making multiple requests to the same server.
+        download_url (str): The URL of the file to be downloaded.
+        filetype (str): The file type that the downloader is looking for. It is used to check if the
+                        downloaded file matches the expected file type.
+        failed_downloads (list): A list that keeps track of the URLs that failed to download.
+                                If an exception occurs during the download process, the URL is added to this list.
+
+    Returns:
+        None: The function does not return anything, it is a coroutine that uses async/await syntax to
+            perform asynchronous tasks.
     """
     async with semaphore:
+        # Extract the path from the URL and get the extension
+        path = urlparse(download_url).path
+        _, ext = os.path.splitext(path)
+        filename = os.path.basename(path)
+        dlpath = Path(FILEPATH / filename)
+
+        # Check if the file already exists
+        if dlpath.resolve().exists():
+            print(f"[-] File already exists: {filename}")
+            return
+
         try:
             async with async_timeout.timeout(10):
                 async with session.get(download_url, headers=HEADERS) as response:
-                    path = urlparse(download_url).path
-                    _, ext = os.path.splitext(path)
                     if ext.lower().split(".")[1] == filetype.lower():
-                        filename = os.path.basename(path)
-                        dlpath = Path(FILEPATH / filename)
                         if not dlpath.resolve().exists():
-                            rprint(f"[+] Downloading: {filename}")
+                            print(f"[+] Downloading: {filename}")
                             async with aiofiles.open(dlpath, "wb") as fileobj:
                                 while True:
                                     chunk = await response.content.read(1024)
@@ -122,43 +142,65 @@ async def downloader(semaphore: asyncio.Semaphore, session: ClientSession, downl
                                     await fileobj.write(chunk)
                             await response.release()
                         else:
-                            rprint(f"[-] File already exists: {filename}")
+                            print(f"[-] File already exists: {filename}")
                     else:
-                        rprint(f"[x] '{download_url}' is not a file of type '{filetype}'.")
-        except Exception as err:
-            print(f"[!] Error downloading '{download_url}': {type(err).__name__}: {err}")
+                        print(f"[x] '{download_url}' is not a file of type '{filetype}'.")
+        except asyncio.TimeoutError:
+            CONSOLE.print(f"[red][!] Timeout error when downloading '{download_url}'.")
+            logging.error(f"Timeout error when downloading '{download_url}'.")
+            failed_downloads.append(download_url)
+
+        except Exception as exc:
+            CONSOLE.print(f"[red][!] Error downloading '{download_url}': {type(exc).__name__}: {exc}")
+            logging.exception(f"Error downloading '{download_url}': {type(exc).__name__}: {exc}")
 
 
 async def main(url: str, filetype: str):
     """
     Asynchronous function that locates and downloads files of the specified type from the given URL.
 
-    :param url: The URL of the webpage to be scraped for files of a certain filetype
-    :type url: str
-    :param filetype: The `filetype` parameter is a string that specifies the type of file to be located
-    and downloaded. It is used in the `link_parser` function to filter out links that do not match the
-    specified file type. It is also passed to the `downloader` function to ensure that only files
-    :type filetype: str
+    Args:
+        url (str): The URL of the webpage to be scraped for files of a certain filetype
+        filetype (str): The `filetype` parameter is a string that specifies the type of file to be
+                        located and downloaded. It is used in the `link_parser` function to filter out
+                        links that do not match the specified file type. It is also passed to the
+                        `downloader` function to ensure that only files.
     """
     async with aiohttp.ClientSession() as session:
-        rprint(f"[+] Locating '{filetype}' files...")
+        print(f"[+] Locating '{filetype}' files...")
         html = await get_page(session, url)
         tasks = []
         semaphore = asyncio.Semaphore(MAX_CONCURRENT_DOWNLOADS)
+        failed_downloads = []
+
         async for urlitem in link_parser(url, filetype, html):
-            task = asyncio.create_task(downloader(semaphore, session, urlitem, filetype))
+            task = asyncio.create_task(downloader(semaphore, session, urlitem, filetype, failed_downloads))
             tasks.append(task)
+
         await asyncio.gather(*tasks)
+
+        # Retry failed downloads
+        if failed_downloads:
+            CONSOLE.print("\n[yellow][!] Retrying failed downloads...")
+            tasks = []
+
+            for urlitem in failed_downloads:
+                task = asyncio.create_task(downloader(semaphore, session, urlitem, filetype, []))
+                tasks.append(task)
+
+            await asyncio.gather(*tasks)
 
 
 def is_valid_url(url: str) -> bool:
     """
     Checks if URL is valid by parsing it and checking if it has a scheme and network location.
 
-    :param url: A string representing a URL that needs to be validated
-    :type url: str
-    :return: The function `is_valid_url` returns a boolean value indicating whether the input `url` is a
-    valid URL or not. If the URL is valid, the function returns `True`, otherwise it returns `False`.
+    Args:
+        url (url): A string representing a URL that needs to be validated
+
+    Returns:
+        bool: A boolean value indicating whether the input `url` is a valid URL or not.
+            If the URL is valid, the function returns `True`, otherwise it returns `False`.
     """
     try:
         parsed = urlparse(url)
