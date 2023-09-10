@@ -42,7 +42,23 @@ Where:
 
 To download all the `.pdf` files on `https://www.example.com/documents` run the command:
 
-`python wfd.py https://www.example.com/documents pdf`
+```text
+  _____                 _____       _____
+ |\    \   _____   ____|\    \  ___|\    \
+ | |    | /    /| |    | \    \|    |\    \
+ \/     / |    || |    |______/|    | |    |
+ /     /_  \   \/ |    |----'\ |    | |    |
+|     // \  \   \ |    |_____/ |    | |    |
+|    |/   \ |    ||    |       |    | |    |
+|\ ___/\   \|   /||____|       |____|/____/|
+| |   | \______/ ||    |       |    /    | |
+ \|___|/\ |    | ||____|       |____|____|/
+    \(   \|____|/   )/           \(    )/
+     '      )/      '             '    '
+            '
+
+python wfd.py https://www.example.com/documents pdf
+```
 
 ## Output
 
