@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "web-dl-by-type"
-version = "0.1.0"
+version = "0.1.3"
 description = "Download web hosted files by filetype/file extension."
 authors = ["Mitch Haddadi <12067255+dfirsec@users.noreply.github.com>"]
 license = "MIT"
