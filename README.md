@@ -4,18 +4,29 @@ This program is designed to download files of a specific type from a web-hosted 
 
 ## Requirements
 
-- Python 3.8+
-- aiohttp
-- async_timeout
-- aiofiles
-- beautifulsoup4
-- rich
+- Python 3.9+
 
-These requirements can be installed using pip by running the following command:
+## Installation
 
-`pip install aiohttp async-timeout aiofiles beautifulsoup4 rich`
-or
-`pip install -r requirements.txt`
+1. Clone the repository:
+
+```text
+git clone https://github.com/dfirsec/web_dl_by_type.git
+```
+
+2. Change to the project directory:
+
+```text
+cd web_dl_by_type
+```
+
+3. Install required packages using poetry:
+
+```text
+pip install poetry
+
+poetry install
+```
 
 ## Usage
 
