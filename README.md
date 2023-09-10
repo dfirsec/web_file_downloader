@@ -43,6 +43,8 @@ Where:
 To download all the `.pdf` files on `https://www.example.com/documents` run the command:
 
 ```text
+python wfd.py https://www.example.com/documents pdf
+
   _____                 _____       _____
  |\    \   _____   ____|\    \  ___|\    \
  | |    | /    /| |    | \    \|    |\    \
@@ -57,7 +59,17 @@ To download all the `.pdf` files on `https://www.example.com/documents` run the 
      '      )/      '             '    '
             '
 
-python wfd.py https://www.example.com/documents pdf
+[*] Locating 'pdf' files...
+[+] Downloading: Document5.pdf
+[+] Downloading: Document6.pdf
+[+] Downloading: Document7.pdf
+[+] Downloading: Document8.pdf
+[+] Downloading: Document9.pdf
+[+] Downloading: Document10.pdf
+[-] File already exists: Document1.pdf
+[-] File already exists: Document2.pdf
+[-] File already exists: Document3.pdf
+[-] File already exists: Document4.pdf
 ```
 
 ## Output
