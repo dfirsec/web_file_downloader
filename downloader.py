@@ -47,7 +47,7 @@ class FileDownloader:
         logging.basicConfig(
             level=logging.ERROR,
             format="%(asctime)s - %(levelname)s - %(message)s",
-            handlers=[logging.FileHandler("error_log.log")],
+            handlers=[logging.FileHandler("errors.log")],
         )
 
     async def get_page(self: "FileDownloader", session: aiohttp.ClientSession, req_url: str) -> str | None:

@@ -48,7 +48,7 @@ To download all the `.pdf` files on `https://www.example.com/documents` run the 
 
 The downloaded files are saved in the `Downloads` folder created in the directory where the `web_file_downloader.py` script is located. If a file with the same name already exists in the folder, the program will skip downloading that file.
 
-The program outputs a status message for each file it attempts to download, including whether the download was successful or not. The program also logs all errors to a file called `error_log.log` located in the same directory as the script.
+The program outputs a status message for each file it attempts to download, including whether the download was successful or not. The program also logs all errors to a file called `errors.log` located in the same directory as the script.
 
 If a file download fails, the program will retry the download after it has completed downloading all other files.
 
