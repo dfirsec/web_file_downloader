@@ -31,7 +31,7 @@ poetry install
 
 ## Usage
 
-`python main.py <URL> <FILE_TYPE>`
+`python wfd.py <URL> <FILE_TYPE>`
 
 Where:
 
@@ -42,7 +42,7 @@ Where:
 
 To download all the `.pdf` files on `https://www.example.com/documents` run the command:
 
-`python main.py https://www.example.com/documents pdf`
+`python wfd.py https://www.example.com/documents pdf`
 
 ## Output
 
