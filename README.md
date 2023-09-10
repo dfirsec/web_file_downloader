@@ -1,6 +1,6 @@
 # Web File Downloader
 
-This program is designed to download files of a specific type from a web-hosted source. Uses the Python asyncio library to provide asynchronous downloading of multiple files simultaneously.
+Download files of a specific type from a web-hosted source. Uses the Python asyncio library for asynchronous downloading of multiple files simultaneously.
 
 ## Requirements
 
@@ -31,7 +31,7 @@ poetry install
 
 ## Usage
 
-`python web_file_downloader.py <URL> <FILE_TYPE>`
+`python main.py <URL> <FILE_TYPE>`
 
 Where:
 
@@ -42,7 +42,7 @@ Where:
 
 To download all the `.pdf` files on `https://www.example.com/documents` run the command:
 
-`python web_file_downloader.py https://www.example.com/documents pdf`
+`python main.py https://www.example.com/documents pdf`
 
 ## Output
 
