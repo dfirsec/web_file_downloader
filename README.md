@@ -41,6 +41,7 @@ Where:
 ### Example Usage
 
 To download all the `.pdf` files from `https://www.example.com/documents` run the command:
+
 `python wfd.py https://www.example.com/documents pdf`
 
 ```text
