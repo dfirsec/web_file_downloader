@@ -12,13 +12,13 @@ Download files of a specific type from a web-hosted source. Uses the Python asyn
 1. Clone the repository:
 
 ```text
-git clone https://github.com/dfirsec/web_dl_by_type.git
+git clone https://github.com/dfirsec/web_file_downloader.git
 ```
 
 2. Change to the project directory:
 
 ```text
-cd web_dl_by_type
+cd web_file_downloader
 ```
 
 3. Install required packages using poetry:
