@@ -208,6 +208,24 @@ def is_valid_url(url: str) -> bool:
 
 
 if __name__ == "__main__":
+    banner = """
+  _____                _____       _____   
+ |\    \   _____  ___|\     \  ___|\    \  
+ | |    | /    /||    |\     \|    |\    \ 
+ \/     / |    |||    | |     |    | |    |
+ /     /_  \   \/|    | /_ _ /|    | |    |
+|     // \  \   \|    |\    \ |    | |    |
+|    |/   \ |    |    | |    ||    | |    |
+|\ ___/\   \|   /|____|/____/||____|/____/|
+| |   | \______/ |    /     |||    /    | |
+ \|___|/\ |    | |____|_____|/|____|____|/ 
+    \(   \|____|/  \(    )/     \(    )/   
+     '      )/      '    '       '    '    
+            '                              
+"""
+
+    console.print(f"[sea_green2]{banner}")
+
     # Check python version.
     if sys.version_info < (3, 9):
         console.print(f"[plum4]Tested on Python v3.9+. May not work properly with v{platform.python_version()}\n")
