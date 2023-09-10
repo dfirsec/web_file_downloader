@@ -5,6 +5,7 @@ This program is designed to download files of a specific type from a web-hosted 
 ## Requirements
 
 - Python 3.9+
+- [Poetry](https://python-poetry.org/) for dependency management
 
 ## Installation
 
@@ -51,6 +52,21 @@ The program outputs a status message for each file it attempts to download, incl
 
 If a file download fails, the program will retry the download after it has completed downloading all other files.
 
+## Dependencies
+
+- **aiofiles**: For asynchronous file read/write operations.
+- **aiohttp**: For making asynchronous HTTP requests.
+- **async-timeout**: For adding timeouts to asynchronous operations.
+- **beautifulsoup4**: For parsing HTML and extracting data.
+- **fake-useragent**: For generating random user-agent strings.
+- **lxml**: For parsing XML and HTML files.
+- **requests**: For making synchronous HTTP requests.
+- **rich**: For rich console output.
+
 ## License
 
 This program is licensed under the MIT License. For more information, please see the `LICENSE` file.
+
+## Credits
+
+The banner text used in the script is courtesy of [Manytools](https://manytools.org/hacker-tools/ascii-banner/).
