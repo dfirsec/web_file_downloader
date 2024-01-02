@@ -2,16 +2,15 @@
 
 
 import logging
+from dataclasses import dataclass
 from pathlib import Path
-from typing import NamedTuple
 from urllib.parse import urlparse
 
 import aiohttp
 
-from .logger import setup_logging
-
-# Call the function to set up logging
-setup_logging()
+# Set up logging parameters
+logs_dir = Path(__file__).parent.parent.joinpath("logs")
+error_logger = logging.getLogger("error_logger")
 
 
 class WebDriverNotFoundError(KeyError):
@@ -23,7 +22,7 @@ class WebDriverNotFoundError(KeyError):
 
     def __str__(self) -> str:
         """Return error message."""
-        logging.error(f"Path for {self.browser_type} not found in config.")
+        error_logger.error(f"Path for {self.browser_type} not found in config.")
         return f"Path for {self.browser_type} not found in config."
 
 
@@ -32,7 +31,7 @@ class UnsupportedOSError(OSError):
 
     def __str__(self) -> str:
         """Return error message."""
-        logging.error("Unsupported operating system")
+        error_logger.error("Unsupported operating system")
         return "Unsupported operating system"
 
 
@@ -41,11 +40,12 @@ class UnsupportedBrowserTypeError(ValueError):
 
     def __str__(self) -> str:
         """Return error message."""
-        logging.error("Unsupported browser type")
+        error_logger.error("Unsupported browser type")
         return "Unsupported browser type"
 
 
-class DownloadInfo(NamedTuple):
+@dataclass
+class DownloadInfo:
     """Contains information about the file to be downloaded.
 
     Attributes:
@@ -55,6 +55,7 @@ class DownloadInfo(NamedTuple):
         extension (str): The extension of the file to be downloaded.
         filetype (str): The type of the file to be downloaded.
         failed_downloads (list[str]): List of URLs that failed to download.
+        expected_size (int): The expected size of the file to be downloaded.
     """
 
     session: aiohttp.ClientSession
@@ -63,6 +64,7 @@ class DownloadInfo(NamedTuple):
     extension: str
     filetype: str
     failed_downloads: list[str]
+    expected_size: int = 0  # default value
 
 
 def is_valid_url(url: str) -> bool:

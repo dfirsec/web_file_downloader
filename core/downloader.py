@@ -28,7 +28,6 @@ from selenium.webdriver.firefox.service import Service as FirefoxService
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
-from .logger import setup_logging
 from .utils import DownloadInfo
 from .utils import UnsupportedBrowserTypeError
 from .utils import WebDriverNotFoundError
@@ -37,12 +36,9 @@ from .utils import WebDriverNotFoundError
 console = Console()
 
 # Set up logging parameters
-setup_logging()
-
-
-# Path to the logs directory
 logs_dir = Path(__file__).parent.parent.joinpath("logs")
-logs_dir.mkdir(exist_ok=True)
+error_logger = logging.getLogger("error_logger")
+download_logger = logging.getLogger("download_logger")
 
 
 class WebDriverManager:
@@ -147,14 +143,14 @@ class FileDownloader:
     def webdriver_error(self) -> None:
         """Print error message and exit."""
         console.print(f"\n[red]Failed to initialize WebDriver for {self.browser_type}.")
-        logging.error(f"Failed to initialize WebDriver for {self.browser_type}.")
+        error_logger.error(f"Failed to initialize WebDriver for {self.browser_type}.")
         console.print("[yellow]Please verify the path in config.json is correct.")
         console.print("Download the WebDriver from the following URLs based on your browser:")
         console.print("- Chrome: https://chromedriver.chromium.org/downloads")
         console.print("- Edge: https://developer.microsoft.com/en-us/microsoft-edge/tools/webdriver/")
         console.print("- Firefox: https://github.com/mozilla/geckodriver")
         console.print("[yellow]Ensure the WebDriver version matches your browser version.")
-        logging.error("Exiting due to missing WebDriver.")
+        error_logger.error("Exiting due to missing WebDriver.")
         sys.exit("Exiting due to missing WebDriver.")
 
     def load_config(self) -> dict[str, str]:
@@ -265,6 +261,9 @@ class FileDownloader:
                 download_info.download_url,
                 headers=self.headers,
             ) as response:
+                response.raise_for_status()
+                expected_size = int(response.headers.get("Content-Length", 0))
+
                 # Check file extension and that the file doesn't exist already
                 if download_info.extension and download_info.extension.lower().endswith(download_info.filetype.lower()):
                     console.print(f"[green][+] Downloading: {download_info.download_path.name}")
@@ -275,17 +274,32 @@ class FileDownloader:
                                 break
                             await fileobj.write(chunk)
                     await response.release()
+                    download_logger.info(f"Successfully downloaded {download_info.download_path.name}")
+                download_info.expected_size = expected_size
 
         except asyncio.TimeoutError:
-            msg = f"Timeout error when downloading '{download_info.download_url}'."
-            console.print(f"[red][!] {msg}")
-            logging.exception(msg)
-            download_info.failed_downloads.append(download_info.download_url)
+            error_logger.exception(f"Timeout error when downloading '{download_info.download_url}'")
+            console.print(f"[red][!] Timeout occurred while downloading {download_info.download_url}[/red]")
 
-        except Exception as exc:
-            msg = f"Error downloading '{download_info.download_url}': {type(exc).__name__}: {exc}"
-            console.print(f"[red][!] {msg}")
-            logging.exception(f"Error downloading '{download_info.download_url}': {type(exc).__name__}")
+            # Check if the file exists and has a non-zero size
+            if download_info.download_path.is_file():
+                actual_size = download_info.download_path.stat().st_size
+                if actual_size < download_info.expected_size:
+                    console.print(f"[yellow]Partial file downloaded: {download_info.download_path.name}")
+                    download_info.failed_downloads.append(download_info.download_url)
+                else:
+                    console.print(
+                        f"[blue]\\[i] File size matches, download may be complete: {download_info.download_path.name}",
+                    )
+                    download_logger.info(f"Successfully downloaded {download_info.download_path.name}")
+
+            else:
+                # Only append to failed downloads if the file doesn't exist or is empty
+                download_info.failed_downloads.append(download_info.download_url)
+
+        except Exception:
+            error_logger.exception(f"Error downloading '{download_info.download_url}'")
+            console.print(f"[red][!] Error occurred while downloading {download_info.download_url}[/red]")
 
     def get_html(self, url: str) -> str:
         """Use Selenium to fetch the HTML content.
@@ -359,7 +373,7 @@ class FileDownloader:
 
             else:
                 console.print(f"[red][!] Error retrieving HTML page from '{url}'")
-                logging.error(f"Error retrieving HTML page from '{url}'")
+                error_logger.error(f"Error retrieving HTML page from '{url}'")
 
             # Download the files.
             await asyncio.gather(*tasks)
