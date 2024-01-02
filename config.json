@@ -1,0 +1,7 @@
+{
+  "webdrivers": {
+    "chrome": "path/to/chromedriver",
+    "edge": "path/to/msedgedriver",
+    "firefox": "path/to/geckodriver"
+  }
+}

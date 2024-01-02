@@ -1,11 +1,11 @@
 # Web File Downloader
 
-Download files of a specific type from a web-hosted source. Uses the Python asyncio library for asynchronous downloading of multiple files simultaneously.
+Download files of a specific type from a web-hosted source. Uses the Python asyncio library for asynchronous downloading of multiple files simultaneously and Selenium WebDriver for handling dynamic web pages.
 
 ## Requirements
 
-- Python 3.9+
-- [Poetry](https://python-poetry.org/) for dependency management
+- Python 3.10+
+- [Poetry](https://python-poetry.org/) for dependency management.
 
 ## Installation
 
@@ -80,6 +80,16 @@ The program outputs a status message for each file it attempts to download, incl
 
 If a file download fails, the program will retry the download after it has completed downloading all other files.
 
+## WebDriver Management
+
+Uses Selenium WebDriver to handle dynamic web content. Ensure the appropriate WebDriver is installed and correctly configured in config.json.
+
+Download WebDrivers from:
+
+- Edge: <https://developer.microsoft.com/en-us/microsoft-edge/tools/webdriver/>
+- Firefox: <https://github.com/mozilla/geckodriver>
+- Chrome: <https://chromedriver.chromium.org/downloads>
+
 ## Dependencies
 
 - **aiofiles**: For asynchronous file read/write operations.
@@ -90,6 +100,7 @@ If a file download fails, the program will retry the download after it has compl
 - **lxml**: For parsing XML and HTML files.
 - **requests**: For making synchronous HTTP requests.
 - **rich**: For rich console output.
+- **selenium**: Browser automation for dynamic web content.
 
 ## License
 
