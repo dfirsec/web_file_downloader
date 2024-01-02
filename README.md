@@ -74,15 +74,15 @@ To download all the `.pdf` files from `https://www.example.com/documents` run th
 
 ## Output
 
-The downloaded files are saved in the `Downloads` folder created in the directory where the `web_file_downloader.py` script is located. If a file with the same name already exists in the folder, the program will skip downloading that file.
+The downloaded files are saved in the `Downloads` folder created in the directory where the `web_file_downloader.py` script is located. If a file with the same name already exists in the folder, it will skip downloading that file.
 
-The program outputs a status message for each file it attempts to download, including whether the download was successful or not. The program also logs all errors to a file called `errors.log` located in the same directory as the script.
+A status message is reported for each file it attempts to download, including whether the download was successful or not. All errors are logged to a file called `errors.log` located in the same directory as the script.
 
-If a file download fails, the program will retry the download after it has completed downloading all other files.
+If a file download fails, a retry attempt of the download will occur after all other files have been downloaded.
 
 ## WebDriver Management
 
-Uses Selenium WebDriver to handle dynamic web content. Ensure the appropriate WebDriver is installed and correctly configured in config.json.
+Uses Selenium WebDriver to handle dynamic web content. Ensure the appropriate WebDriver is installed and correctly configured in the `config.json` file.
 
 Download WebDrivers from:
 
