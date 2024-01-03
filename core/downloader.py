@@ -1,19 +1,19 @@
 """Contains the FileDownloader class."""
 
-import asyncio
 import json
 import logging
+import math
 import re
 import sys
 import threading
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urljoin
 from urllib.parse import urlparse
 
-import aiofiles
-import aiohttp
-import async_timeout
+import httpx
+import trio
 from bs4 import BeautifulSoup
 from fake_useragent import UserAgent
 from rich.console import Console
@@ -28,17 +28,39 @@ from selenium.webdriver.firefox.service import Service as FirefoxService
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
-from .utils import DownloadInfo
-from .utils import UnsupportedBrowserTypeError
-from .utils import WebDriverNotFoundError
+from .custom_exceptions import UnsupportedBrowserTypeError
+from .custom_exceptions import WebDriverNotFoundError
 
 # Rich console object
 console = Console()
 
 # Set up logging parameters
-logs_dir = Path(__file__).parent.parent.joinpath("logs")
+logs_dir = Path(__file__).parent.parent.joinpath("Logs")
 error_logger = logging.getLogger("error_logger")
 download_logger = logging.getLogger("download_logger")
+
+
+@dataclass
+class DownloadInfo:
+    """Contains information about the file to be downloaded.
+
+    Attributes:
+        session (httpx.AsyncClient): The HTTP session to be used for downloading the file.
+        download_url (str): The URL to download the file from.
+        download_path (Path): The path to download the file to.
+        extension (str): The extension of the file to be downloaded.
+        filetype (str): The type of the file to be downloaded.
+        failed_downloads (list[str]): List of URLs that failed to download.
+        expected_size (int): The expected size of the file to be downloaded.
+    """
+
+    session: httpx.AsyncClient
+    download_url: str
+    download_path: Path
+    extension: str
+    filetype: str
+    failed_downloads: list[str]
+    expected_size: int = 0  # default value
 
 
 class WebDriverManager:
@@ -103,7 +125,6 @@ class WebDriverManager:
         """Set preferences for Chrome and Edge."""
         options.add_argument(f"user-agent={self.ua.random}")
         options.add_argument("--headless=new")
-        options.add_argument("--disable-gpu")
         options.add_argument("--disable-logging")
         options.add_argument("--log-level=3")
         options.add_experimental_option("excludeSwitches", ["enable-logging"])
@@ -112,7 +133,7 @@ class WebDriverManager:
 class FileDownloader:
     """Contains main program functionality."""
 
-    def __init__(self: "FileDownloader", browser_type: str) -> None:
+    def __init__(self: "FileDownloader") -> None:
         """Initialize class instance.
 
         Args:
@@ -131,14 +152,15 @@ class FileDownloader:
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
             "Accept-Language": "en-US,en;q=0.5",
         }
-        self.browser_type = browser_type
         self.config = self.load_config()
+        self.browser_type = self.config["preferred_browser"]
+        self.driver_path = self.config["webdrivers"][self.browser_type]
         self.driver_path = self.get_driver_path()
 
         if not self.webdriver_exists(self.driver_path):
             self.webdriver_error()
             sys.exit(1)
-        self.web_driver_manager = WebDriverManager(browser_type, self.driver_path)
+        self.web_driver_manager = WebDriverManager(self.browser_type, self.driver_path)
 
     def webdriver_error(self) -> None:
         """Print error message and exit."""
@@ -198,13 +220,13 @@ class FileDownloader:
 
         soup = BeautifulSoup(html, "lxml")
 
-        # Check for links.
+        # Check for links
         for link in soup.find_all("a"):
             href = link.get("href")
             if href and href.lower().endswith(filetype.lower()):
                 yield urljoin(base_url, href)
 
-        # Check for images.
+        # Check for images
         for img in soup.find_all("img"):
             src = img.get("src")
             data_src = img.get("data-src")
@@ -219,21 +241,24 @@ class FileDownloader:
                 if ext.lower() == filetype.lower():
                     yield url
 
-    async def downloader(self: "FileDownloader", semaphore: asyncio.Semaphore, download_info: DownloadInfo) -> None:
+    async def downloader_with_limiter(self, download_info: DownloadInfo, limiter: trio.CapacityLimiter) -> None:
+        """Download the file with a capacity limiter."""
+        async with limiter:
+            await self.downloader(download_info)
+
+    async def downloader(self, download_info: DownloadInfo) -> None:
         """Download the file.
 
         Args:
-            semaphore (asyncio.Semaphore): Semaphore object.
             download_info (DownloadInfo): DownloadInfo object.
         """
-        async with semaphore:
-            filename, _download_path, _extension = self.extract_file_info(download_info.download_url)
+        filename, download_path, _extension = self.extract_file_info(download_info.download_url)
 
-            if download_info.download_path.resolve().exists():
-                console.print(f"[grey58][-] File already exists: {filename}")
-                return
+        if download_path.resolve().exists():
+            console.print(f"[grey58][-] File already exists: {filename}")
+            return
 
-            await self.download_file(download_info)
+        await self.download_file(download_info)
 
     def extract_file_info(self: "FileDownloader", download_url: str) -> tuple[str, Path, str]:
         """Extract file-related information from the given URL.
@@ -250,53 +275,59 @@ class FileDownloader:
         download_path = Path(self.filepath / filename)
         return filename, download_path, extension
 
+    def calculate_timeout(self, file_size: int, base_timeout: int = 10, max_timeout: int = 30) -> int:
+        """Calculate the download timeout based on file size.
+
+        Args:
+            file_size (int): The size of the file in bytes.
+            base_timeout (int): The base timeout in seconds (for small files).
+            max_timeout (int): The maximum allowed timeout.
+
+        Returns:
+            int: The calculated timeout in seconds.
+        """
+        mb_size = file_size / (1024 * 1024)
+        additional_time = min(10 * math.log(mb_size + 1, 2), max_timeout - base_timeout)
+
+        return min(base_timeout + additional_time, max_timeout)
+
     async def download_file(self: "FileDownloader", download_info: DownloadInfo) -> None:
-        """Handle the actual file download.
+        """Handle the file download using httpx and trio.
 
         Args:
             download_info (DownloadInfo): DownloadInfo object.
         """
         try:
-            async with async_timeout.timeout(10), download_info.session.get(
-                download_info.download_url,
-                headers=self.headers,
-            ) as response:
-                response.raise_for_status()
-                expected_size = int(response.headers.get("Content-Length", 0))
+            timeout_duration = self.calculate_timeout(file_size=download_info.expected_size)
 
-                # Check file extension and that the file doesn't exist already
-                if download_info.extension and download_info.extension.lower().endswith(download_info.filetype.lower()):
+            with trio.move_on_after(timeout_duration):
+                async with httpx.AsyncClient(follow_redirects=True) as client:
+                    response = await client.get(download_info.download_url)
+
+                    if response.status_code == 404:
+                        console.print(f"[red][!] File not found: {download_info.download_url}")
+                        error_logger.exception(f"File not found (404): '{download_info.download_url}'")
+                        return
+
+                    response.raise_for_status()
+                    file_size = int(response.headers.get("Content-Length", 0))
+
                     console.print(f"[green][+] Downloading: {download_info.download_path.name}")
-                    async with aiofiles.open(download_info.download_path, "wb") as fileobj:
-                        while True:
-                            chunk = await response.content.read(1024)
-                            if not chunk:
-                                break
+                    async with await trio.open_file(download_info.download_path, "wb") as fileobj:
+                        async for chunk in response.aiter_bytes():
                             await fileobj.write(chunk)
-                    await response.release()
-                    download_logger.info(f"Successfully downloaded {download_info.download_path.name}")
-                download_info.expected_size = expected_size
 
-        except asyncio.TimeoutError:
+                    download_logger.info(f"Successfully downloaded {download_info.download_path.name}")
+
+                download_info.expected_size = file_size
+
+        except trio.TooSlowError:
             error_logger.exception(f"Timeout error when downloading '{download_info.download_url}'")
             console.print(f"[red][!] Timeout occurred while downloading {download_info.download_url}[/red]")
-
-            # Check if the file exists and has a non-zero size
-            if download_info.download_path.is_file():
-                actual_size = download_info.download_path.stat().st_size
-                if actual_size < download_info.expected_size:
-                    console.print(f"[yellow]Partial file downloaded: {download_info.download_path.name}")
-                    download_info.failed_downloads.append(download_info.download_url)
-                else:
-                    console.print(
-                        f"[blue]\\[i] File size matches, download may be complete: {download_info.download_path.name}",
-                    )
-                    download_logger.info(f"Successfully downloaded {download_info.download_path.name}")
-
-            else:
-                # Only append to failed downloads if the file doesn't exist or is empty
-                download_info.failed_downloads.append(download_info.download_url)
-
+        except httpx.HTTPStatusError:
+            error_logger.exception(f"HTTP error when downloading '{download_info.download_url}'")
+            console.print(f"[red][!] HTTP error occurred while downloading {download_info.download_url}")
+            download_info.failed_downloads.append(download_info.download_url)
         except Exception:
             error_logger.exception(f"Error downloading '{download_info.download_url}'")
             console.print(f"[red][!] Error occurred while downloading {download_info.download_url}[/red]")
@@ -313,7 +344,7 @@ class FileDownloader:
         driver = self.web_driver_manager.get_webdriver()
         try:
             driver.get(url)
-            # Wait up to 5 seconds until the body tag is found and page is loaded
+            # Wait 5 seconds until the body tag is found
             WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
         except Exception:
             console.print("[red][!] Error in get_html_with_selenium")
@@ -353,39 +384,49 @@ class FileDownloader:
         """
         max_concurrent_downloads = 10
 
-        async with aiohttp.ClientSession() as session:
+        async with httpx.AsyncClient() as session:
             console.print(f"\n[cyan][*] Locating '{filetype}' files...")
 
             # Use run_selenium_in_thread to fetch HTML content
             html = self.run_selenium_in_thread(url)
 
-            tasks = []
-            semaphore = asyncio.Semaphore(max_concurrent_downloads)
-            failed_downloads = []
+            capacity_limiter = trio.CapacityLimiter(max_concurrent_downloads)
 
-            # Check if the HTML page was retrieved successfully.
-            if html is not None:
-                async for urlitem in self.link_parser(url, filetype, html):
-                    _filename, download_path, extension = self.extract_file_info(urlitem)
-                    download_info = DownloadInfo(session, urlitem, download_path, extension, filetype, failed_downloads)
-                    task = asyncio.create_task(self.downloader(semaphore, download_info))
-                    tasks.append(task)
+            async with trio.open_nursery() as nursery:
+                failed_downloads = []
 
-            else:
-                console.print(f"[red][!] Error retrieving HTML page from '{url}'")
-                error_logger.error(f"Error retrieving HTML page from '{url}'")
+                # Check if the HTML page was retrieved
+                if html is not None:
+                    async for urlitem in self.link_parser(url, filetype, html):
+                        _filename, download_path, extension = self.extract_file_info(urlitem)
+                        download_info = DownloadInfo(
+                            session,
+                            urlitem,
+                            download_path,
+                            extension,
+                            filetype,
+                            failed_downloads,
+                        )
+                        nursery.start_soon(
+                            self.downloader_with_limiter,
+                            download_info,
+                            capacity_limiter,
+                        )
 
-            # Download the files.
-            await asyncio.gather(*tasks)
-
-            if failed_downloads:
-                console.print("\n[gold1][!] Retrying failed downloads...")
-                tasks = []
-
-                for failed in failed_downloads:
-                    _filename, download_path, extension = self.extract_file_info(failed)
-                    download_info = DownloadInfo(session, failed, download_path, extension, filetype, [])
-                    task = asyncio.create_task(self.downloader(semaphore, download_info))
-                    tasks.append(task)
-
-                await asyncio.gather(*tasks)
+                if failed_downloads:
+                    console.print("\n[gold1][!] Retrying failed downloads...")
+                    for failed in failed_downloads:
+                        _filename, download_path, extension = self.extract_file_info(failed)
+                        download_info = DownloadInfo(
+                            session,
+                            failed,
+                            download_path,
+                            extension,
+                            filetype,
+                            [],
+                        )
+                        nursery.start_soon(
+                            self.downloader_with_limiter,
+                            download_info,
+                            capacity_limiter,
+                        )

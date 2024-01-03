@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "web_file_downloader"
-version = "0.1.4"
+version = "0.1.5"
 description = "Download web hosted files by filetype/file extension."
 authors = ["Mitch Haddadi <12067255+dfirsec@users.noreply.github.com>"]
 license = "MIT"
@@ -9,14 +9,13 @@ packages = [{include = "web_file_downloader"}]
 
 [tool.poetry.dependencies]
 python = "^3.10"
-aiofiles = "^23.2.1"
-aiohttp = "^3.9.1"
-async-timeout = "^4.0.3"
 beautifulsoup4 = "^4.12.2"
 fake-useragent = "^1.4.0"
 lxml = "^5.0.0"
 requests = "^2.31.0"
 rich = "^13.7.0"
+httpx = "^0.26.0"
+trio = "^0.23.2"
 
 
 [build-system]
