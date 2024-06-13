@@ -23,7 +23,6 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
 from .config import default_settings
-from .custom_exceptions import WebDriverNotFoundError
 from .download_info import DownloadInfo
 from .webdriver_manager import WebDriverManager
 
