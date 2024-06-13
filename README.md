@@ -99,7 +99,6 @@ Common practice is to place the WebDrivers in a directory included in your syste
 
     - **Windows**: `C:\WebDrivers\`
     - **macOS/Linux**: `/usr/local/bin/`
-<br>
 
 2. **Project Directory**: Store the WebDriver executables in a dedicated directory within the project. Update the `settings.toml` file to reflect the correct paths.
 
