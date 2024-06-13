@@ -1,7 +1,6 @@
 """Contains the FileDownloader class."""
 
 import contextlib
-import json
 import logging
 import math
 import re
