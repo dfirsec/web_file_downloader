@@ -11,22 +11,22 @@ Download files of a specific type from a web-hosted source. Uses the Python trio
 
 1. Clone the repository:
 
-```sh
-git clone https://github.com/dfirsec/web_file_downloader.git
-```
+    ```sh
+    git clone https://github.com/dfirsec/web_file_downloader.git
+    ```
 
 2. Change to the project directory:
 
-```sh
-cd web_file_downloader
-```
+    ```sh
+    cd web_file_downloader
+    ```
 
-3. Install required packages using poetry:
+3. Install required packages using Poetry:
 
-```sh
-pip install poetry
-poetry install
-```
+    ```sh
+    pip install poetry
+    poetry install
+    ```
 
 ## Usage
 
@@ -91,11 +91,29 @@ A log file of successful downloads is written to a file called `downloads.log` l
 
 Uses Selenium WebDriver to handle dynamic web content. Ensure the appropriate WebDriver is installed and correctly configured in the `settings.toml` file.  Also, ensure to enter your preferred browser, e.g. `preferred_browser = "edge"`.
 
-Download WebDrivers from:
+### Recommended WebDriver Locations
+
+Common practice is to place the WebDrivers in a directory included in your system's PATH or a dedicated directory within the project.
+
+1. **System PATH**: Add the WebDriver executables to a directory that is included in your system's PATH. This allows them to be accessible from any location without specifying the full path.
+
+    - **Windows**: `C:\WebDrivers\`
+    - **macOS/Linux**: `/usr/local/bin/`
+<br>
+
+2. **Project Directory**: Store the WebDriver executables in a dedicated directory within the project. Update the `settings.toml` file to reflect the correct paths.
+
+    - **Example**: `web_file_downloader/drivers/`
+
+### Download WebDrivers
+
+Download the appropriate WebDriver for your browser from the following links:
 
 - Edge: <https://developer.microsoft.com/en-us/microsoft-edge/tools/webdriver/>
 - Firefox: <https://github.com/mozilla/geckodriver>
 - Chrome: <https://chromedriver.chromium.org/downloads>
+
+Ensure the WebDriver version matches your browser version.
 
 ## Dependencies
 
