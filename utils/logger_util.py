@@ -4,7 +4,7 @@ import logging
 from pathlib import Path
 
 # Directories and file paths
-logs_dir = Path(__file__).parent.parent.joinpath("Logs")
+logs_dir = Path(__file__).parent.parent.joinpath("logs")
 errors_log = logs_dir.joinpath("errors.log")
 downloads_log = logs_dir.joinpath("downloads.log")
 

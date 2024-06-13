@@ -5,15 +5,15 @@ import sys
 from pathlib import Path
 
 import trio
-from core import FileDownloader
-from core import banner
 from rich.console import Console
+from utils import FileDownloader
+from utils import banner
 
 # Rich console object
 console = Console()
 
 
-def is_valid_url(url: str) -> bool:
+def validate_url(url: str) -> bool:
     """Check if the URL is valid using regex.
 
     Args:
@@ -37,7 +37,7 @@ def main() -> None:
     url = sys.argv[1]
     file_type = sys.argv[2]
 
-    if not is_valid_url(url):
+    if not validate_url(url):
         console.print(f"[bright_red][!] '{url}' is not a valid URL")
         return
 

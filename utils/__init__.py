@@ -1,13 +1,15 @@
-"""Core package for web_file_downloader."""
+"""Utilities module for web_file_downloader package."""
 
 from .custom_exceptions import UnsupportedBrowserTypeError  # noqa: F401  (suppress unused import)
 from .custom_exceptions import UnsupportedOSError  # noqa: F401
 from .custom_exceptions import WebDriverNotFoundError  # noqa: F401
-from .downloader import DownloadInfo  # noqa: F401
-from .downloader import FileDownloader  # noqa: F401
-from .logger import setup_logging  # noqa: F401
+from .download_info import DownloadInfo  # noqa: F401
+from .file_downloader import FileDownloader  # noqa: F401
+from .logger_util import setup_logging  # noqa: F401  # noqa: F401
+from .webdriver_manager import WebDriverManager  # noqa: F401
 
-__version__ = "0.1.5"
+# Banner
+__version__ = "0.1.6"
 __author__ = "DFIRSec (@pulsecode)"
 
 banner = rf"""

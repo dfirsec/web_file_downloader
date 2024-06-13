@@ -1,5 +1,6 @@
 """Contains the FileDownloader class."""
 
+import contextlib
 import json
 import logging
 import math
@@ -7,7 +8,6 @@ import re
 import sys
 import threading
 from collections.abc import AsyncIterator
-from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urljoin
 from urllib.parse import urlparse
@@ -17,117 +17,22 @@ import trio
 from bs4 import BeautifulSoup
 from fake_useragent import UserAgent
 from rich.console import Console
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options as ChromeOptions
-from selenium.webdriver.chrome.service import Service as ChromeService
+from selenium.common.exceptions import SessionNotCreatedException
 from selenium.webdriver.common.by import By
-from selenium.webdriver.edge.options import Options as EdgeOptions
-from selenium.webdriver.edge.service import Service as EdgeService
-from selenium.webdriver.firefox.options import Options as FirefoxOptions
-from selenium.webdriver.firefox.service import Service as FirefoxService
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
-from .custom_exceptions import UnsupportedBrowserTypeError
+from .config import default_settings
 from .custom_exceptions import WebDriverNotFoundError
+from .download_info import DownloadInfo
+from .webdriver_manager import WebDriverManager
 
 # Rich console object
 console = Console()
 
 # Set up logging parameters
-logs_dir = Path(__file__).parent.parent.joinpath("Logs")
 error_logger = logging.getLogger("error_logger")
 download_logger = logging.getLogger("download_logger")
-
-
-@dataclass
-class DownloadInfo:
-    """Contains information about the file to be downloaded.
-
-    Attributes:
-        session (httpx.AsyncClient): The HTTP session to be used for downloading the file.
-        download_url (str): The URL to download the file from.
-        download_path (Path): The path to download the file to.
-        extension (str): The extension of the file to be downloaded.
-        filetype (str): The type of the file to be downloaded.
-        failed_downloads (list[str]): List of URLs that failed to download.
-        expected_size (int): The expected size of the file to be downloaded.
-    """
-
-    session: httpx.AsyncClient
-    download_url: str
-    download_path: Path
-    extension: str
-    filetype: str
-    failed_downloads: list[str]
-    expected_size: int = 0  # default value
-
-
-class WebDriverManager:
-    """Manages WebDrivers for different browsers."""
-
-    def __init__(self, browser_type: str, driver_path: Path) -> None:
-        """Initialize class instance."""
-        self.browser_type = browser_type
-        self.driver_path = driver_path
-        self.ua = UserAgent()
-
-    def get_webdriver(self) -> webdriver.Chrome | webdriver.Firefox | webdriver.Edge | None:
-        """Returns the appropriate WebDriver based on the browser type."""
-        if self.browser_type == "chrome":
-            return self.chrome_webdriver()
-        if self.browser_type == "edge":
-            return self.edge_webdriver()
-        if self.browser_type == "firefox":
-            return self.firefox_webdriver()
-        raise UnsupportedBrowserTypeError()
-
-    def firefox_webdriver(self) -> webdriver.Firefox:
-        """Initialize Firefox WebDriver."""
-        options = FirefoxOptions()
-        options.add_argument("--headless")
-        options.add_argument(f"user-agent={self.ua.random}")
-
-        firefox_log_path = logs_dir / "firefox.log"
-        firefox_service = FirefoxService(
-            executable_path=self.driver_path,
-            service_log_path=str(firefox_log_path),
-        )
-
-        return webdriver.Firefox(service=firefox_service, options=options)
-
-    def edge_webdriver(self) -> webdriver.Edge:
-        """Initialize Edge WebDriver."""
-        options = EdgeOptions()
-        self.chrome_edge_prefs(options)
-
-        edge_log_path = logs_dir / "edge.log"
-        edge_service = EdgeService(
-            executable_path=self.driver_path,
-            service_args=[f"--log-path={edge_log_path!s}"],
-        )
-
-        return webdriver.Edge(service=edge_service, options=options)
-
-    def chrome_webdriver(self) -> webdriver.Chrome:
-        """Initialize Chrome WebDriver."""
-        options = ChromeOptions()
-        self.chrome_edge_prefs(options)
-
-        chrome_log_path = logs_dir / "chrome.log"
-        chrome_service = ChromeService(
-            executable_path=self.driver_path,
-            service_args=[f"--log-path={chrome_log_path!s}"],
-        )
-        return webdriver.Chrome(service=chrome_service, options=options)
-
-    def chrome_edge_prefs(self, options: webdriver.edge.options.Options | webdriver.chrome.options.Options) -> None:
-        """Set preferences for Chrome and Edge."""
-        options.add_argument(f"user-agent={self.ua.random}")
-        options.add_argument("--headless=new")
-        options.add_argument("--disable-logging")
-        options.add_argument("--log-level=3")
-        options.add_experimental_option("excludeSwitches", ["enable-logging"])
 
 
 class FileDownloader:
@@ -145,21 +50,24 @@ class FileDownloader:
         """
         self.ua = UserAgent()
         self.root = Path(__file__).parent.parent.resolve()
-        self.filepath = self.root.joinpath("Downloads")
+        self.filepath = self.root.joinpath("downloads")
         self.filepath.mkdir(parents=True, exist_ok=True)
         self.headers = {
             "User-Agent": self.ua.random,
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
             "Accept-Language": "en-US,en;q=0.5",
         }
-        self.config = self.load_config()
-        self.browser_type = self.config["preferred_browser"]
-        self.driver_path = self.config["webdrivers"][self.browser_type]
-        self.driver_path = self.get_driver_path()
 
+        # Get browser type and WebDriver path from config
+        self.browser_type = default_settings.get("preferred_browser")
+        self.driver_path = default_settings.get("webdrivers", {}).get(self.browser_type)
+
+        # Check if the WebDriver exists
         if not self.webdriver_exists(self.driver_path):
             self.webdriver_error()
             sys.exit(1)
+
+        # Initialize WebDriverManager
         self.web_driver_manager = WebDriverManager(self.browser_type, self.driver_path)
 
     def webdriver_error(self) -> None:
@@ -168,35 +76,12 @@ class FileDownloader:
         error_logger.error(f"Failed to initialize WebDriver for {self.browser_type}.")
         console.print("[yellow]Please verify the path in config.json is correct.")
         console.print("Download the WebDriver from the following URLs based on your browser:")
-        console.print("- Chrome: https://chromedriver.chromium.org/downloads")
-        console.print("- Edge: https://developer.microsoft.com/en-us/microsoft-edge/tools/webdriver/")
-        console.print("- Firefox: https://github.com/mozilla/geckodriver")
+        console.print(" - Chrome: https://chromedriver.chromium.org/downloads")
+        console.print(" - Edge: https://developer.microsoft.com/en-us/microsoft-edge/tools/webdriver/")
+        console.print(" - Firefox: https://github.com/mozilla/geckodriver")
         console.print("[yellow]Ensure the WebDriver version matches your browser version.")
         error_logger.error("Exiting due to missing WebDriver.")
         sys.exit("Exiting due to missing WebDriver.")
-
-    def load_config(self) -> dict[str, str]:
-        """Load the configuration file.
-
-        Returns:
-            dict[str, str]: WebDriver path configuration data.
-        """
-        with Path.open("config.json") as file:
-            return json.load(file)
-
-    def get_driver_path(self) -> str:
-        """Get the path to the WebDriver executable.
-
-        Returns:
-            str: Path to the WebDriver executable.
-
-        Raises:
-            WebDriverNotFoundError: WebDriver not found at specified path.
-        """
-        try:
-            return self.config["webdrivers"][self.browser_type]
-        except KeyError as err:
-            raise WebDriverNotFoundError(self.browser_type) from err
 
     def webdriver_exists(self, path: Path) -> bool:
         """Check if the WebDriver exists at specified path."""
@@ -252,12 +137,6 @@ class FileDownloader:
         Args:
             download_info (DownloadInfo): DownloadInfo object.
         """
-        filename, download_path, _extension = self.extract_file_info(download_info.download_url)
-
-        if download_path.resolve().exists():
-            console.print(f"[grey58][-] File already exists: {filename}")
-            return
-
         await self.download_file(download_info)
 
     def extract_file_info(self: "FileDownloader", download_url: str) -> tuple[str, Path, str]:
@@ -297,6 +176,12 @@ class FileDownloader:
         Args:
             download_info (DownloadInfo): DownloadInfo object.
         """
+        filename, download_path, _extension = self.extract_file_info(download_info.download_url)
+
+        if download_path.resolve().exists():
+            console.print(f"[grey58][-] File already exists: {filename}")
+            return
+
         try:
             timeout_duration = self.calculate_timeout(file_size=download_info.expected_size)
 
@@ -341,19 +226,27 @@ class FileDownloader:
         Returns:
             str: HTML page content.
         """
-        driver = self.web_driver_manager.get_webdriver()
         try:
+            driver = self.web_driver_manager.get_webdriver()
             driver.get(url)
             # Wait 5 seconds until the body tag is found
             WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+
+        except SessionNotCreatedException:
+            console.print(
+                "[red][!] Incorrect WebDriver version. Please update your WebDriver to match your browser version.",
+            )
+            error_logger.exception("Incorrect WebDriver version.")
         except Exception:
             console.print("[red][!] Error in get_html_with_selenium")
             logging.exception("Error in get_html_with_selenium")
-            return ""
         else:
             return driver.page_source
         finally:
-            driver.quit()
+            with contextlib.suppress(UnboundLocalError):
+                driver.quit()
+
+        return ""
 
     def run_selenium_in_thread(self, url: str) -> str:
         """Run Selenium in a separate thread to prevent blocking the main async loop.
