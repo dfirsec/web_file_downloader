@@ -19,7 +19,6 @@ rich = "^13.7.0"
 selenium = "^4.21.0"
 trio = "^0.23.2"
 
-
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"

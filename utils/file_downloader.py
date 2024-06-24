@@ -290,34 +290,36 @@ class FileDownloader:
                 if html is not None:
                     async for urlitem in self.link_parser(url, filetype, html):
                         _filename, download_path, extension = self.extract_file_info(urlitem)
-                        download_info = DownloadInfo(
-                            session,
-                            urlitem,
-                            download_path,
-                            extension,
-                            filetype,
-                            failed_downloads,
-                        )
-                        nursery.start_soon(
-                            self.downloader_with_limiter,
-                            download_info,
-                            capacity_limiter,
-                        )
+                        if not download_path.resolve().exists():
+                            download_info = DownloadInfo(
+                                session,
+                                urlitem,
+                                download_path,
+                                extension,
+                                filetype,
+                                failed_downloads,
+                            )
+                            nursery.start_soon(
+                                self.downloader_with_limiter,
+                                download_info,
+                                capacity_limiter,
+                            )
 
                 if failed_downloads:
                     console.print("\n[gold1][!] Retrying failed downloads...")
                     for failed in failed_downloads:
                         _filename, download_path, extension = self.extract_file_info(failed)
-                        download_info = DownloadInfo(
-                            session,
-                            failed,
-                            download_path,
-                            extension,
-                            filetype,
-                            [],
-                        )
-                        nursery.start_soon(
-                            self.downloader_with_limiter,
-                            download_info,
-                            capacity_limiter,
-                        )
+                        if not download_path.resolve().exists():
+                            download_info = DownloadInfo(
+                                session,
+                                failed,
+                                download_path,
+                                extension,
+                                filetype,
+                                [],
+                            )
+                            nursery.start_soon(
+                                self.downloader_with_limiter,
+                                download_info,
+                                capacity_limiter,
+                            )

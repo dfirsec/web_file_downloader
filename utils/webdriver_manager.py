@@ -1,5 +1,6 @@
 """This module contains the WebDriverManager class."""
 
+import platform
 from pathlib import Path
 
 from fake_useragent import UserAgent
@@ -54,10 +55,19 @@ class WebDriverManager:
         self.chrome_edge_prefs(options)
 
         edge_log_path = logs_dir / "edge.log"
-        edge_service = EdgeService(
-            executable_path=self.driver_path,
-            service_args=[f"--log-path={edge_log_path!s}"],
-        )
+
+        if platform.system() == "Windows":
+            # disable popen creation flag 'DevTools listening on ws://127.0.0.1...'
+            edge_service = EdgeService(
+                executable_path=self.driver_path,
+                service_args=[f"--log-path={edge_log_path!s}"],
+                popen_kw={"creation_flags": 0x08000000},
+            )
+        else:
+            edge_service = EdgeService(
+                executable_path=self.driver_path,
+                service_args=[f"--log-path={edge_log_path!s}"],
+            )
 
         return webdriver.Edge(service=edge_service, options=options)
 
